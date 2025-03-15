@@ -1,10 +1,30 @@
 import threading
+import os
+from flask import Flask
 from services.mmr_processor import processar_mmr_todos_jogadores
 from database.mongodb_client import connect_db, create_collections
 from bot.discord_bot import ArenaBot
 from config import DISCORD_TOKEN, MMR_UPDATE_INTERVAL
 from logs.logger import Logger
 from services.scheduler import TaskScheduler
+
+# Create Flask app
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return 'Arena Ranking Bot is running!'
+
+@app.route('/health')
+def health_check():
+    return 'OK', 200
+
+def run_discord_bot(db, logger):
+    """Run the Discord bot in a separate thread"""
+    logger.info("Inicializando o bot Discord...")
+    bot = ArenaBot()
+    logger.info("Executando o bot Discord...")
+    bot.run(DISCORD_TOKEN)
 
 if __name__ == "__main__":
     # Configurar logger
@@ -34,12 +54,16 @@ if __name__ == "__main__":
         scheduler.start()
         logger.info("Agendamento de tarefa MMR configurado.")
         
-        # Criar instância do bot
-        logger.info("Inicializando o bot Discord...")
-        bot = ArenaBot()
+        # Start Discord bot in a separate thread
+        bot_thread = threading.Thread(target=run_discord_bot, args=(db, logger))
+        bot_thread.daemon = True
+        bot_thread.start()
         
-        # Iniciar o bot Discord 
-        logger.info("Executando o bot Discord...")
-        bot.run(DISCORD_TOKEN)  # No need for threading since this is a blocking call
+        # Get port from environment (for render.com) or use default
+        port = int(os.environ.get('PORT', 5000))
+        
+        # Start the web server
+        logger.info(f"Iniciando servidor web na porta {port}...")
+        app.run(host='0.0.0.0', port=port)
     else:
-        logger.error("Falha ao conectar ao banco de dados. Bot Discord não pode iniciar.")
+        logger.error("Falha ao conectar ao banco de dados. Aplicação não pode iniciar.")
