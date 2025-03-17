@@ -15,9 +15,9 @@ DEFAULT_MMR = {
 }
 
 # Configuração do fator K para cálculo de MMR
-K_FACTOR_BASE = 20  # Fator K base
-K_FACTOR_NEW_PLAYER = 30  # Fator K para jogadores novos (primeiras 20 partidas)
-K_MAX = 40  # Limite máximo do fator K
+K_FACTOR_BASE = 40  # Fator K base
+K_FACTOR_NEW_PLAYER = 50  # Fator K para jogadores novos (primeiras 20 partidas)
+K_MAX = 80  # Limite máximo do fator K
 
 # Multiplicadores de MMR baseados na posição
 PLACEMENT_MULTIPLIERS = {

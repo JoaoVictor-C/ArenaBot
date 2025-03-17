@@ -45,7 +45,6 @@ def processar_mmr_jogador(db, jogador_data, logger=None):
     if not novas_partidas_ids:
         return True
     
-    logger.info(f"Novas partidas para {riot_id}: {len(novas_partidas_ids)} encontradas.")
     
     # Resetar delta_mmr para 0 no início do processamento
     players_collection = db.get_collection('players')
@@ -87,20 +86,21 @@ def _processar_partida(db, match_id, riot_id, puuid, logger, date_added):
     detalhes_partida = get_match_details(match_id)
     # If the date added is after the match date, ignore it
     if date_added and detalhes_partida.get('info', {}).get('gameCreation'):
-        game_creation_time = datetime.datetime.fromtimestamp(detalhes_partida.get('info', {}).get('gameCreation') / 1000)
+        game_creation_time = datetime.datetime.utcfromtimestamp(detalhes_partida.get('info', {}).get('gameCreation') / 1000)
+        # Ensure date_added is a datetime object in UTC for comparison
+        if isinstance(date_added, str):
+            date_added = datetime.datetime.fromisoformat(date_added.replace('Z', '+00:00'))
+        
         if game_creation_time < date_added:
-            logger.info(f"Partida {match_id} ocorreu antes da data de adição do jogador, ignorando.")
             return False
     
     if not detalhes_partida:
-        logger.warning(f"Não foi possível obter detalhes da partida {match_id}")
+        print(f"Não foi possível obter detalhes da partida {match_id}.")
         return False
         
     if detalhes_partida.get('info', {}).get('gameMode') != "CHERRY":
-        logger.info(f"Partida {match_id} não é do modo Arena (CHERRY), ignorando.")
         return False
         
-    logger.info(f"Processando partida Arena: {match_id} para {riot_id}")
     
     # Buscar todos os jogadores de uma vez para evitar múltiplas consultas
     players_puuids = detalhes_partida.get('metadata', {}).get('participants', [])

@@ -6,6 +6,7 @@ from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 from database.player_repository import Player
 from config.config import MONGODB_URI
 from config.config import RIOT_API_KEY as riot_key
+import re
 
 def connect_db() -> Optional[Database]:
     """
@@ -88,8 +89,7 @@ def add_jogador(db, puuid: str, riot_id: str, nome: str, from_bot: bool, mmr: in
     existing_player_doc = players_collection.find_one({"puuid": puuid})
     if existing_player_doc:
         print(f"Player with puuid '{puuid}' already exists in the database.")
-        
-        # Se o auto_check for False, atualize para True
+    
         if not existing_player_doc.get('auto_check', False):
             print(f"Updating auto_check for player with puuid '{puuid}' to True.")
             players_collection.update_one(
@@ -113,6 +113,58 @@ def add_jogador(db, puuid: str, riot_id: str, nome: str, from_bot: bool, mmr: in
     except Exception as e:
         print(f"Error adding player '{riot_id}' to database: {e}")
         return False
+    
+def get_players(db) -> list[dict]:
+    """Retrieves all players from the database."""
+    if db is None:
+        print("Database connection is not established. Cannot retrieve players.")
+        return []
+
+    players_collection = db.get_collection('players')
+    players_docs = list(players_collection.find())
+    
+    if players_docs:
+        print(f"Retrieved {len(players_docs)} players from the database.")
+        return players_docs
+    else:
+        print("No players found in database.")
+        return []
+    
+def delete_jogador(db, riot_id: str) -> bool:
+    """Deletes a player from the database by their riot_id."""
+    if db is None:
+        print("Database connection is not established. Cannot delete player.")
+        return False
+
+    players_collection = db.get_collection('players')
+    result = players_collection.delete_one({"riot_id": riot_id})
+    
+    if result.deleted_count > 0:
+        print(f"Player '{riot_id}' deleted from the database.")
+        return True
+    else:
+        print(f"Player '{riot_id}' not found in database.")
+        return False
+    
+def get_jogador_by_nome(db, nome: str) -> Optional[Player]:
+    """Retrieves a player from the database by their display name."""
+    if db is None:
+        print("Database connection is not established. Cannot retrieve player.")
+        return None
+
+    players_collection = db.get_collection('players')
+    player_doc = players_collection.find_one({"nome": {"$regex": "^" + re.escape(nome) + "$", "$options": "i"}})
+    
+    if player_doc:
+        if player_doc.get('auto_check', False) == False:
+            players_collection.update_one(
+                {"nome": nome},
+                {"$set": {"auto_check": True, "mmr_atual": 1000, "losses": 0, "wins": 0}}
+            )
+        return Player.from_document(player_doc)
+    else:
+        print(f"Player '{nome}' not found in database.")
+        return None
 
 def get_jogador_by_riot_id(db, riot_id) -> Optional[Player]:
     """Retrieves a player from the database by their riot_id. Example of riot_id: "Riot ID#1"."""
@@ -122,14 +174,15 @@ def get_jogador_by_riot_id(db, riot_id) -> Optional[Player]:
         return None
 
     players_collection = db.get_collection('players')
-    player_doc = players_collection.find_one({"riot_id": riot_id})
+    player_doc = players_collection.find_one({"riot_id": {"$regex": "^" + re.escape(riot_id) + "$", "$options": "i"}})
     
     if player_doc:
         print(f"Player with riot_id '{riot_id}' found in database.")
-        players_collection.update_one(
-            {"riot_id": riot_id},
-            {"$set": {"auto_check": True, "mmr_atual": 1000, "losses": 0, "wins": 0}}
-        )
+        if player_doc.get('auto_check', False) == False:
+            players_collection.update_one(
+                {"riot_id": riot_id},
+                {"$set": {"auto_check": True, "mmr_atual": 1000, "losses": 0, "wins": 0}}
+            )
         return Player.from_document(player_doc)
     else:
         print(f"Player '{riot_id}' not found in database.")
@@ -146,10 +199,11 @@ def get_jogador_by_puuid(db, puuid: str) -> Optional[Player]:
     
     if player_doc:
         print(f"Player with puuid '{puuid}' found in database.")
-        players_collection.update_one(
-            {"puuid": puuid},
-            {"$set": {"auto_check": True, "mmr_atual": 1000, "losses": 0, "wins": 0}}
-        )
+        if player_doc.get('auto_check', False) == False:
+            players_collection.update_one(
+                {"puuid": puuid},
+                {"$set": {"auto_check": True, "mmr_atual": 1000, "losses": 0, "wins": 0}}
+            )
         return Player.from_document(player_doc)
     else:
         print(f"Player with puuid '{puuid}' not found in database.")
@@ -172,6 +226,25 @@ def update_mmr(db, puuid: str, new_mmr: int) -> bool:
         return True
     else:
         print(f"Player with puuid '{puuid}' not found in database.")
+        return False
+ 
+def update_puuid(db, riot_id: str, new_puuid: str) -> bool:
+    """Updates the puuid of a player in the database."""
+    if db is None:
+        print("Database connection is not established. Cannot update puuid.")
+        return False
+
+    players_collection = db.get_collection('players')
+    result = players_collection.update_one(
+        {"riot_id": riot_id},
+        {"$set": {"puuid": new_puuid}}
+    )
+
+    if result.modified_count > 0:
+        print(f"PUUID updated for player with riot_id '{riot_id}'.")
+        return True
+    else:
+        print(f"Player with riot_id '{riot_id}' not found in database.")
         return False
     
 def update_player_name(db, puuid: str, new_name: str) -> bool:

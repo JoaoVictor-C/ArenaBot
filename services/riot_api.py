@@ -43,7 +43,7 @@ async def get_player(puuid):
         return None
 
 def get_match_history_puuid(puuid):
-    url = f"https://{REGION}.api.riotgames.com/lol/match/v5/matches/by-puuid/{puuid}/ids?type=normal&start=0&count=4"
+    url = f"https://{REGION}.api.riotgames.com/lol/match/v5/matches/by-puuid/{puuid}/ids?type=normal&start=0&count=5"
     headers = {"X-Riot-Token": RIOT_API_KEY}
     response = requests.get(url, headers=headers)
     if response.status_code == 200:

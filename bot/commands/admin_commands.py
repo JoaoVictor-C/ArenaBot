@@ -8,6 +8,7 @@ from dotenv import set_key
 from typing import Literal, Optional
 import config.config as config
 import services.riot_api as riot_api  # Importação adicional
+from database.mongodb_client import delete_jogador, get_players, update_puuid
 
 class AdminCommandsCog(commands.Cog):
     def __init__(self, bot):
@@ -23,7 +24,7 @@ class AdminCommandsCog(commands.Cog):
             
     @commands.command()
     @commands.has_permissions(administrator=True)
-    async def update_riot_key_prefix(self, ctx, key: str):
+    async def update_riot_key(self, ctx, key: str):
         """
         Atualiza a chave da API Riot sem reiniciar o bot.
         
@@ -71,3 +72,31 @@ class AdminCommandsCog(commands.Cog):
             else:
                 ret += 1
         await ctx.send(f"Synced the tree to {ret}/{len(guilds)}.")
+        
+    @commands.command()
+    @commands.guild_only()
+    @commands.has_permissions(administrator=True)
+    async def restart_puuid(self, ctx: Context) -> None:
+        """Restart all player PUUIDs."""
+        players = get_players(db=ctx.bot.db)
+        print(players)
+        for player in players:
+            if player["auto_check"] == False:
+                continue
+            riot_id = player["riot_id"]
+            name, tagline = riot_id.split("#")
+            new_puuid = riot_api.verify_riot_id(tagline=tagline, name=name)
+            if new_puuid:
+                update_puuid(db=ctx.bot.db, riot_id=riot_id, new_puuid=new_puuid)
+                print(f"Updated PUUID for {riot_id} to {new_puuid}")
+            else:
+                print(f"Error updating PUUID for {riot_id}")
+        await ctx.send("All PUUIDs updated.")
+
+    @commands.command()
+    @commands.guild_only()
+    @commands.has_permissions(administrator=True)
+    async def delete_user(self, ctx: Context, riot_id: str) -> None:
+        """Delete a user from the database."""
+        delete_jogador(db=ctx.bot.db, riot_id=riot_id)
+        await ctx.send(f"User {riot_id} deleted from the database.")

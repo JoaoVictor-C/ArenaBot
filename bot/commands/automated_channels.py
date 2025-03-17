@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 import asyncio
 from logs.logger import Logger
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
 
 class AutomatedChannelsCog(commands.Cog):
@@ -18,7 +18,7 @@ class AutomatedChannelsCog(commands.Cog):
     @commands.has_permissions(administrator=True)
     async def set_ranking_channel(self, ctx, channel: discord.TextChannel = None):
         """
-        Define o canal onde o ranking será exibido e atualizado automaticamente a cada 30 minutos.
+        Define o canal onde o ranking será exibido e atualizado automaticamente a cada 10 minutos.
         Se nenhum canal for especificado, usa o canal atual.
         
         Uso: !set_ranking_channel #canal
@@ -50,7 +50,7 @@ class AutomatedChannelsCog(commands.Cog):
         await self.start_ranking_updates(ctx.guild.id, channel.id)
         
         self.logger.info(f"Canal de ranking configurado no servidor {ctx.guild.name} (ID: {ctx.guild.id}): {channel.name} (ID: {channel.id})")
-        await ctx.send(f"✅ O canal {channel.mention} foi configurado para receber atualizações automáticas do ranking a cada 30 minutos!")
+        await ctx.send(f"✅ O canal {channel.mention} foi configurado para receber atualizações automáticas do ranking a cada 10 minutos!")
 
     @commands.command()
     @commands.has_permissions(administrator=True)
@@ -113,7 +113,7 @@ class AutomatedChannelsCog(commands.Cog):
             
             # Loop de atualização a cada 30 minutos
             while True:
-                await asyncio.sleep(30 * 60)  # 30 minutos em segundos
+                await asyncio.sleep(10 * 60)  # 30 minutos em segundos
                 await self.update_server_ranking(server_id, channel_id)
                 
         except asyncio.CancelledError:
@@ -188,17 +188,24 @@ class AutomatedChannelsCog(commands.Cog):
                     else:
                         emoji = f"{i}."
 
+                    # Show trend with arrow and format delta
+                    trend = "↑" if delta_mmr > 0 else "↓" if delta_mmr < 0 else "→"
+                    delta_formatted = f"+{delta_mmr}" if delta_mmr > 0 else f"{delta_mmr}" if delta_mmr != 0 else "0"
+                    
                     embed.add_field(
                         name=f"{emoji} {nome}",
-                        value=f"**{mmr} PDL** | **W/L:** {wins}/{losses} | **Variação de PDL:** {delta_mmr}",
+                        value=f"**{mmr} PDL** | W/L: {wins}/{losses} | Winrate: {0 if (wins + losses) == 0 else (wins / (wins + losses) * 100):.0f}% | {trend} {delta_formatted} pdl" + f"{'s' if abs(delta_mmr) > 1 else ''}", 
                         inline=False
                     )
                 
-                # Get current time in Brasilia timezone
+                # Get next update 10 minutes from now
                 brasilia_tz = pytz.timezone('America/Sao_Paulo')
-                brasilia_time = datetime.now(brasilia_tz).strftime('%d/%m/%Y %H:%M:%S')
                 
-                embed.set_footer(text=f"Atualizado automaticamente em {brasilia_time} (Horário de Brasília)", 
+                brasilia_time = (datetime.now(brasilia_tz) + timedelta(minutes=10)).strftime('%d/%m/%Y %H:%M')
+                
+                
+                
+                embed.set_footer(text=f"Próxima atualização: {brasilia_time}",
                                 icon_url="https://ddragon.leagueoflegends.com/cdn/14.3.1/img/champion/Senna.png")
                 
                 content = None
